@@ -3,7 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
-	"sudoku"
+	"sudoku/sudoku"
 )
 
 // Establish Global Variables
@@ -55,11 +55,11 @@ func main() {
 	// Recursively iterate through board and print results
 	if canProceed {
 		fmt.Println()
-		fmt.Println("Initial sudoku board shown below:\n ")
+		fmt.Println("Initial sudoku board shown below:\n")
 		sudoku.PrintBoard(board)
 		if recursiveSolve(0, 0) {
 			fmt.Println()
-			fmt.Println("The following solution was found:\n ")
+			fmt.Println("The following solution was found:\n")
 			sudoku.PrintBoard(board)
 			fmt.Println()
 		} else {
