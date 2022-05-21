@@ -233,7 +233,7 @@ func TestAllScenarios(t *testing.T) {
 		},
 	}
 
-	algorithms := []string{"backtracking", "exact-cover"}
+	algorithms := []string{"backtracking", "exact-cover", "bitmask"}
 
 	// Save original settings.txt content if any
 	origSettings, errReadFile := os.ReadFile("settings.txt")

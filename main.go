@@ -86,6 +86,8 @@ func main() {
 	var solved bool
 	if algo == "exact-cover" || algo == "algo-x" {
 		solved = sudoku.SolveExactCover(&board)
+	} else if algo == "bitmask" {
+		solved = sudoku.SolveBitmask(&board)
 	} else {
 		solved = recursiveSolve(0, 0)
 	}
