@@ -11,11 +11,11 @@ var board [9][9]int
 var validInput bool
 
 // readSettings reads the solver configuration from settings.txt.
-// Defaults to "backtracking" if settings.txt is missing or unreadable.
+// Defaults to "exact-cover" if settings.txt is missing, unreadable, or invalid.
 func readSettings() string {
 	data, err := os.ReadFile("settings.txt")
 	if err != nil {
-		return "backtracking"
+		return "exact-cover"
 	}
 	s := string(data)
 	// Custom space-trimming to avoid importing the "strings" package
@@ -27,35 +27,15 @@ func readSettings() string {
 	for end > start && (s[end-1] == ' ' || s[end-1] == '\n' || s[end-1] == '\r' || s[end-1] == '\t') {
 		end--
 	}
-	return s[start:end]
+	algo := s[start:end]
+	// Validate the algorithm. If it's invalid, default to exact-cover.
+	if algo == "backtracking" || algo == "exact-cover" || algo == "algo-x" || algo == "bitmask" || algo == "tdoku" || algo == "simd-tdoku" {
+		return algo
+	}
+	return "exact-cover"
 }
 
-// An algorithm which solves a given sudoku puzzle using backtracking
-func recursiveSolve(rowPosition, columnPosition int) bool {
 
-	size := len(board)
-
-	// End condition which should be recursively reached if solution found.
-	// i.e. Finishes 9th row, moves to 10th row (non-existent)
-	if rowPosition == 9 {
-		return true
-	}
-	// Move to next cell if current cell already filled in
-	if board[rowPosition][columnPosition] != 0 {
-		return recursiveSolve(sudoku.NextCell(rowPosition, columnPosition))
-	} else {
-		for i := 1; i <= size; i++ {
-			if sudoku.CheckValid(board, rowPosition, columnPosition, i) == true {
-				board[rowPosition][columnPosition] = i
-				if recursiveSolve(sudoku.NextCell(rowPosition, columnPosition)) {
-					return true
-				}
-				board[rowPosition][columnPosition] = 0
-			}
-		}
-		return false
-	}
-}
 
 // See below for inspiration
 // INSPIRATION: https://charltonaustin.com/posts/sudoku-using-go-lang/
@@ -91,7 +71,7 @@ func main() {
 	} else if algo == "tdoku" || algo == "simd-tdoku" {
 		solved = sudoku.SolveTdoku(&board)
 	} else {
-		solved = recursiveSolve(0, 0)
+		solved = sudoku.SolveBacktracking(&board)
 	}
 
 	if solved {
