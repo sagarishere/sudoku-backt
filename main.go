@@ -74,31 +74,26 @@ func main() {
 	// Check starting board validity according to minimum number requirements
 	if sudoku.StartValid(board) == false {
 		canProceed = false
-		fmt.Printf("Error: Input configuration is not valid.")
 	} else if validInput == false {
-		fmt.Printf("Error: Incorrect input - string cannot be read according to standard 9 x 9 dimensions")
+		canProceed = false
 	}
-	// Recursively iterate through board and print results
-	if canProceed {
-		fmt.Println()
-		fmt.Println("Initial sudoku board shown below:\n")
+
+	if !canProceed {
+		fmt.Println("Error")
+		return
+	}
+
+	var solved bool
+	if algo == "exact-cover" || algo == "algo-x" {
+		solved = sudoku.SolveExactCover(&board)
+	} else {
+		solved = recursiveSolve(0, 0)
+	}
+
+	if solved {
 		sudoku.PrintBoard(board)
-
-		var solved bool
-		if algo == "exact-cover" || algo == "algo-x" {
-			solved = sudoku.SolveExactCover(&board)
-		} else {
-			solved = recursiveSolve(0, 0)
-		}
-
-		if solved {
-			fmt.Println()
-			fmt.Println("The following solution was found:\n")
-			sudoku.PrintBoard(board)
-			fmt.Println()
-		} else {
-			fmt.Println("\nA solution for this start configuration does not exist.")
-			fmt.Println()
-		}
+		fmt.Println()
+	} else {
+		fmt.Println("Error")
 	}
 }

@@ -15,6 +15,10 @@ func CreateBoard(startCondition []string) ([9][9]int, bool) {
 	// Fill row slices with columns and fill with start values
 	if validCreate == true {
 		for i := 0; i < sudokuSize; i++ {
+			if len(startCondition[i]) != 9 {
+				validCreate = false
+				break
+			}
 			for j := 0; j < sudokuSize; j++ {
 				startBoard[i][j] = 0
 				if startCondition[i][j] >= '1' && startCondition[i][j] <= '9' {
