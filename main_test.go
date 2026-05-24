@@ -233,22 +233,6 @@ func TestAllScenarios(t *testing.T) {
 		},
 	}
 
-	// Save original settings.txt content if any
-	origSettings, errReadFile := os.ReadFile("settings.txt")
-
-	defer func() {
-		if errReadFile == nil {
-			_ = os.WriteFile("settings.txt", origSettings, 0644)
-		} else {
-			_ = os.Remove("settings.txt")
-		}
-	}()
-
-	err = os.WriteFile("settings.txt", []byte("exact-cover\n"), 0644)
-	if err != nil {
-		t.Fatalf("Failed to write settings.txt: %v", err)
-	}
-
 	for i, tc := range testCases {
 		cmd := exec.Command(binPath, tc.args...)
 		var stdout, stderr bytes.Buffer

@@ -19,17 +19,6 @@ The Sudoku grid is formulated as an **Exact Cover Problem**. A toroidal, circula
 
 ---
 
-## Configuration (`settings.txt`)
-
-The solver is configured via `settings.txt` in the project root. Supported values:
-
-- `exact-cover` *(default)*
-- `algo-x` (alias for exact cover)
-
-If `settings.txt` is missing, unreadable, or contains any other value, the application defaults to `exact-cover`.
-
----
-
 ## Usage
 
 Run the program with exactly 9 arguments, each representing a row of the Sudoku board. Dots (`.`) or `0` denote empty cells.
@@ -68,9 +57,8 @@ Error
 ## Directory Structure
 
 ```
-├── main.go               # Entry point and settings parsing
+├── main.go               # Entry point
 ├── main_test.go          # 18-case integration test suite
-├── settings.txt          # Solver configuration (exact-cover or algo-x)
 ├── go.mod                # Module specification
 └── sudoku/
     ├── algoX.go          # DLX matrix and Algorithm X solver

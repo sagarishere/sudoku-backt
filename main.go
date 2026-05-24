@@ -10,37 +10,11 @@ import (
 var board [9][9]int
 var validInput bool
 
-// readSettings reads the solver configuration from settings.txt.
-// Defaults to "exact-cover" if settings.txt is missing, unreadable, or invalid.
-func readSettings() string {
-	data, err := os.ReadFile("settings.txt")
-	if err != nil {
-		return "exact-cover"
-	}
-	s := string(data)
-	// Custom space-trimming to avoid importing the "strings" package
-	start := 0
-	for start < len(s) && (s[start] == ' ' || s[start] == '\n' || s[start] == '\r' || s[start] == '\t') {
-		start++
-	}
-	end := len(s)
-	for end > start && (s[end-1] == ' ' || s[end-1] == '\n' || s[end-1] == '\r' || s[end-1] == '\t') {
-		end--
-	}
-	algo := s[start:end]
-	if algo == "exact-cover" || algo == "algo-x" {
-		return algo
-	}
-	return "exact-cover"
-}
-
 // See below for inspiration
 // INSPIRATION: https://charltonaustin.com/posts/sudoku-using-go-lang/
 // INSPIRATION: https://www.geeksforgeeks.org/sudoku-backtracking-7/
 // INSPIRATION: https://www.5minsofcode.com/sodoku_solver.html
 func main() {
-	_ = readSettings()
-
 	inputBoard := os.Args[1:]
 	var err bool
 	board, err = sudoku.CreateBoard(inputBoard)
