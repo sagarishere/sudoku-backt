@@ -51,6 +51,8 @@ A completed Sudoku is a grid where:
 
 This solver takes a partially filled grid (via command-line input), checks that the starting clues are legal, and fills in the rest automatically. The sections below explain **how** it does that.
 
+For a **line-by-line walkthrough** on a real test puzzle (including how the first empty cell gets its digit), see [explanation.md](explanation.md).
+
 ---
 
 ## How It Works
@@ -511,9 +513,11 @@ Error
 ## Project layout
 
 ```
-├── main.go        # Entry point, solver, and helpers
-├── main_test.go   # Integration and unit tests
-├── images/        # Diagrams (Sudoku rules, etc.)
+├── main.go          # Entry point, solver, and helpers
+├── main_test.go     # Integration and unit tests
+├── README.md        # Concepts and usage
+├── explanation.md   # Step-by-step walkthrough on Test Case 1
+├── images/          # Diagrams (Sudoku rules, DLX, etc.)
 └── go.mod
 ```
 
