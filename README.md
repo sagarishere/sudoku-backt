@@ -106,6 +106,36 @@ type Node struct {
 
 Think of each node as a **bead** on a wire. You do not scan a big array; you **follow wires** (`Left`, `Right`, `Up`, `Down`) to visit neighbors.
 
+#### A DLX node up close
+
+The diagram below shows **one** node and how it connects to its neighbors. This is the heart of Dancing Links — not a normal 2D table stored in memory, but a **linked grid** you walk through pointer by pointer.
+
+<img src="images/DLX/NodeWithFourPointers.jpg" alt="DLX node with Left, Right, Up, Down pointers and Sudoku fields RowVal, ColIdx, Digit" width="33%">
+
+Read the diagram in two parts:
+
+**1. Pointer links (how you move around)**  
+The green section holds four pointers: `Left`, `Right`, `Up`, and `Down`. Each one stores the **address** of another node (that is what `*Node` means — a pointer to a `Node`). Solid arrows in the picture show “this node knows about that neighbor.” The faint arrows going back mean the links work **both ways**: if A points right to B, then B points left to A.
+
+- **Up / Down** — move within a **column** (vertical list of choices for one constraint).
+- **Left / Right** — move within a **row** (horizontal ring of the four constraints one Sudoku placement satisfies).
+
+So when the code says `node.Right`, it means: “give me the next node in this horizontal ring.” When it says `node.Down`, it means: “give me the next node below in this column.”
+
+**2. Sudoku data (what this node means)**  
+The orange section answers: *which Sudoku placement does this node represent?*
+
+| Field | Meaning |
+|-------|---------|
+| `RowVal` | Row on the board (0–8) |
+| `ColIdx` | Column on the board (0–8) |
+| `Digit` | Digit placed there (1–9) |
+| `Col` | Which constraint column this node belongs to |
+
+Example: a node with `RowVal = 2`, `ColIdx = 4`, `Digit = 7` belongs to the choice **“put 7 in row 2, column 4.”** That one Sudoku idea is represented by **four** linked nodes in the matrix (cell, row, column, and box constraints) — you hop between them using `Left` and `Right`.
+
+**Beginner takeaway:** A DLX node is a small box with **directions** (four pointers) and a **label** (which row, column, and digit it stands for). The solver never says “look at row 5 of a big array.” It says “start here, follow `Down`, then follow `Right`” — that is **traversal**.
+
 ---
 
 ### A simple singly linked list (one direction)
