@@ -21,7 +21,7 @@ Think of it as a logic puzzle, not a math puzzle — you never multiply or add. 
 
 Each of the **9 horizontal rows** must contain the digits **1 through 9 exactly once**. No digit may appear twice in the same row.
 
-![Rule of rows: each horizontal row must contain 1–9 with no repeats](images/three_rules/1.%20rule%20of%20rows.jpg)
+<img src="images/three_rules/1.%20rule%20of%20rows.jpg" alt="Rule of rows: each horizontal row must contain 1–9 with no repeats" width="33%">
 
 When checking a row, scan left to right and make sure you see each number from 1 to 9 once — and only once.
 
@@ -29,7 +29,7 @@ When checking a row, scan left to right and make sure you see each number from 1
 
 Each of the **9 vertical columns** must also contain **1 through 9 exactly once**. No digit may appear twice in the same column.
 
-![Rule of columns: each vertical column must contain 1–9 with no repeats](images/three_rules/2.%20rule%20of%20columns.jpg)
+<img src="images/three_rules/2.%20rule%20of%20columns.jpg" alt="Rule of columns: each vertical column must contain 1–9 with no repeats" width="33%">
 
 When checking a column, scan top to bottom the same way: every digit 1–9 appears once, with no duplicates.
 
@@ -37,7 +37,7 @@ When checking a column, scan top to bottom the same way: every digit 1–9 appea
 
 The 9×9 grid is divided into **nine 3×3 sub-grids** (often called **boxes** or **blocks**). Each block must contain **1 through 9 exactly once** as well.
 
-![Rule of blocks: each 3×3 box must contain 1–9 with no repeats](images/three_rules/3.%20rule_of_blocks.jpg)
+<img src="images/three_rules/3.%20rule_of_blocks.jpg" alt="Rule of blocks: each 3×3 box must contain 1–9 with no repeats" width="33%">
 
 Thicker lines on the grid mark the block boundaries. When you place a digit, it must be valid for its **row**, its **column**, and its **block** all at once.
 
