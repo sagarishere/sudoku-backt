@@ -28,21 +28,18 @@ func readSettings() string {
 		end--
 	}
 	algo := s[start:end]
-	// Validate the algorithm. If it's invalid, default to exact-cover.
-	if algo == "backtracking" || algo == "exact-cover" || algo == "algo-x" || algo == "bitmask" || algo == "tdoku" || algo == "simd-tdoku" {
+	if algo == "exact-cover" || algo == "algo-x" {
 		return algo
 	}
 	return "exact-cover"
 }
-
-
 
 // See below for inspiration
 // INSPIRATION: https://charltonaustin.com/posts/sudoku-using-go-lang/
 // INSPIRATION: https://www.geeksforgeeks.org/sudoku-backtracking-7/
 // INSPIRATION: https://www.5minsofcode.com/sodoku_solver.html
 func main() {
-	algo := readSettings()
+	_ = readSettings()
 
 	inputBoard := os.Args[1:]
 	var err bool
@@ -63,18 +60,7 @@ func main() {
 		return
 	}
 
-	var solved bool
-	if algo == "exact-cover" || algo == "algo-x" {
-		solved = sudoku.SolveExactCover(&board)
-	} else if algo == "bitmask" {
-		solved = sudoku.SolveBitmask(&board)
-	} else if algo == "tdoku" || algo == "simd-tdoku" {
-		solved = sudoku.SolveTdoku(&board)
-	} else {
-		solved = sudoku.SolveBacktracking(&board)
-	}
-
-	if solved {
+	if sudoku.SolveExactCover(&board) {
 		sudoku.PrintBoard(board)
 		fmt.Println()
 	} else {

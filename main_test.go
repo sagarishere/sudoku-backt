@@ -233,8 +233,6 @@ func TestAllScenarios(t *testing.T) {
 		},
 	}
 
-	algorithms := []string{"backtracking", "exact-cover", "bitmask", "tdoku"}
-
 	// Save original settings.txt content if any
 	origSettings, errReadFile := os.ReadFile("settings.txt")
 
@@ -246,32 +244,25 @@ func TestAllScenarios(t *testing.T) {
 		}
 	}()
 
-	for _, algo := range algorithms {
-		t.Run(algo, func(t *testing.T) {
-			// Write settings
-			err := os.WriteFile("settings.txt", []byte(algo+"\n"), 0644)
-			if err != nil {
-				t.Fatalf("Failed to write settings.txt: %v", err)
-			}
+	err = os.WriteFile("settings.txt", []byte("exact-cover\n"), 0644)
+	if err != nil {
+		t.Fatalf("Failed to write settings.txt: %v", err)
+	}
 
-			for i, tc := range testCases {
-				cmd := exec.Command(binPath, tc.args...)
-				var stdout, stderr bytes.Buffer
-				cmd.Stdout = &stdout
-				cmd.Stderr = &stderr
+	for i, tc := range testCases {
+		cmd := exec.Command(binPath, tc.args...)
+		var stdout, stderr bytes.Buffer
+		cmd.Stdout = &stdout
+		cmd.Stderr = &stderr
 
-				_ = cmd.Run() // Ignore exit error since invalid runs exit with non-zero or zero status
+		_ = cmd.Run()
 
-				outStr := stdout.String()
+		outStr := stdout.String()
+		outStr = strings.ReplaceAll(outStr, "\r\n", "\n")
+		expected := strings.ReplaceAll(tc.expected, "\r\n", "\n")
 
-				// Standardize newlines
-				outStr = strings.ReplaceAll(outStr, "\r\n", "\n")
-				expected := strings.ReplaceAll(tc.expected, "\r\n", "\n")
-
-				if outStr != expected {
-					t.Errorf("Case %d failed for algo %s.\nArgs: %v\nExpected:\n%q\nGot:\n%q\nStderr: %s", i+1, algo, tc.args, expected, outStr, stderr.String())
-				}
-			}
-		})
+		if outStr != expected {
+			t.Errorf("Case %d failed.\nArgs: %v\nExpected:\n%q\nGot:\n%q\nStderr: %s", i+1, tc.args, expected, outStr, stderr.String())
+		}
 	}
 }
