@@ -110,7 +110,7 @@ Think of each node as a **bead** on a wire. You do not scan a big array; you **f
 
 The diagram below shows **one** node and how it connects to its neighbors. This is the heart of Dancing Links — not a normal 2D table stored in memory, but a **linked grid** you walk through pointer by pointer.
 
-<img src="images/DLX/NodeWithFourPointers.jpg" alt="DLX node with Left, Right, Up, Down pointers and Sudoku fields RowVal, ColIdx, Digit" width="33%">
+<img src="images/DLX/NodeWithFourPointers.jpg" alt="DLX node with Left, Right, Up, Down pointers and Sudoku fields RowVal, ColIdx, Digit" width="100%">
 
 Read the diagram in two parts:
 
