@@ -264,11 +264,70 @@ Knuth's **Algorithm X** solves the **Exact Cover** problem:
 3. Each piece covers exactly **4 slots** (cell, row, column, box).
 4. Pick **81 pieces** so all slots are filled with no overlap.
 
+#### Why 324 slots? (You only see 81 cells on the board)
+
+A fair question: the grid is **9×9 = 81 cells**, so where does **324** come from?
+
+**Answer:** A **slot** is not a cell on the board. It is **one rule** the solver must satisfy. We list every Sudoku rule explicitly, and there are **four kinds** of rules — each kind contributes **81** slots:
+
+| What you see | What the solver tracks |
+|--------------|------------------------|
+| **81 cells** on the 9×9 grid | **81** cell rules: “this cell gets exactly one digit” |
+| 9 rows | **81** row rules: “in row *r*, digit *d* appears exactly once” (9 rows × 9 digits) |
+| 9 columns | **81** column rules: “in column *c*, digit *d* appears exactly once” |
+| 9 boxes | **81** box rules: “in box *b*, digit *d* appears exactly once” |
+
+Add them up:
+
+```text
+  81   cell rules
++ 81   row rules
++ 81   column rules
++ 81   box rules
+────
+ 324   total slots (constraints)
+```
+
+So **324 = 4 × 81**. We are not counting cells four times; we are counting **four separate rule families**, each with 81 members.
+
+**Why are row rules 81, not just 9?**  
+Nine rows does **not** mean nine row rules. The row rule is: *each digit 1–9 appears exactly once in that row*. That is **nine separate facts per row** (one per digit). Example slots:
+
+- “Row 3 contains **7** exactly once”
+- “Row 3 contains **2** exactly once”
+- … and so on for every row and every digit → **9 × 9 = 81** row slots.
+
+The same logic gives **81** column slots and **81** box slots.
+
+**Examples of one slot each:**
+
+| Slot | Plain English |
+|------|----------------|
+| Cell (4, 7) | The cell at row 4, column 7 must hold **some** digit (exactly one). |
+| Row 3, digit 7 | Row 3 must contain **7** exactly once. |
+| Column 5, digit 2 | Column 5 must contain **2** exactly once. |
+| Box 0 (top-left), digit 9 | The top-left 3×3 box must contain **9** exactly once. |
+
+**Mental picture:**
+
+```text
+What you see:              What the solver tracks:
+┌─────────────┐            81  → each cell has a number
+│  9 × 9 = 81 │           +81  → each row has 1–9 once
+│    cells    │           +81  → each column has 1–9 once
+└─────────────┘           +81  → each box has 1–9 once
+                            ───
+                            324 rules to satisfy
+```
+
+**Why 729 pieces?**  
+A **piece** (candidate) means: “put digit **v** in cell **(r, c)**.” There are 9 choices of row, 9 of column, and 9 of digit: **9 × 9 × 9 = 729** possible placements. Each placement satisfies **4** of the 324 slots at once (its cell, row, column, and box). A complete Sudoku picks **81** of those 729 pieces — one per cell — so that **all 324** rules are met with no conflict.
+
 ---
 
 ### Constraints (columns in the matrix)
 
-We encode rules as **324 columns** (81 of each type):
+In code, each of the 324 slots above is one **column** in the exact-cover matrix. We encode rules as **324 columns** (81 of each type):
 
 | Type | Meaning | Count |
 |------|---------|-------|
