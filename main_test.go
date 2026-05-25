@@ -9,6 +9,72 @@ import (
 	"testing"
 )
 
+// --- helpers for unit tests (mirror logic from main where needed) ---
+
+func resetBoards() {
+	grid = [9][9]int{}
+	solved = [9][9]int{}
+}
+
+// setGrid loads 9 strings of length 9 ('.' or '0' = empty, '1'-'9' = clue).
+func setGrid(rows []string) {
+	for r := 0; r < 9; r++ {
+		for c := 0; c < 9; c++ {
+			ch := rows[r][c]
+			if ch == '.' || ch == '0' {
+				grid[r][c] = 0
+			} else {
+				grid[r][c] = int(ch - '0')
+			}
+		}
+	}
+}
+
+// cluesAreValid uses the same check as main: each given digit must not conflict with others.
+func cluesAreValid() bool {
+	for r := 0; r < 9; r++ {
+		for c := 0; c < 9; c++ {
+			if grid[r][c] != 0 {
+				num := grid[r][c]
+				grid[r][c] = 0
+				ok := isValid(r, c, num)
+				grid[r][c] = num
+				if !ok {
+					return false
+				}
+			}
+		}
+	}
+	return true
+}
+
+func countSolutions() int {
+	solutions := 0
+	solve(&solutions)
+	return solutions
+}
+
+// boardToRows turns a 9×9 board into puzzle strings; listed cells are left empty.
+func boardToRows(b [9][9]int, emptyCells [][2]int) []string {
+	empty := make(map[[2]int]bool)
+	for _, p := range emptyCells {
+		empty[p] = true
+	}
+	rows := make([]string, 9)
+	for r := 0; r < 9; r++ {
+		chars := make([]byte, 9)
+		for c := 0; c < 9; c++ {
+			if empty[[2]int{r, c}] {
+				chars[c] = '.'
+			} else {
+				chars[c] = byte('0' + b[r][c])
+			}
+		}
+		rows[r] = string(chars)
+	}
+	return rows
+}
+
 func TestAllScenarios(t *testing.T) {
 	// 1. Build the binary
 	tmpDir, err := os.MkdirTemp("", "sudoku-test")
@@ -254,37 +320,162 @@ func TestAllScenarios(t *testing.T) {
 	}
 }
 
-func TestSolveBacktracking(t *testing.T) {
-	// Same puzzle as Test Case 1 in TestAllScenarios
-	rows := []string{
-		".96.4...1",
-		"1...6...4",
-		"5.481.39.",
-		"..795..43",
-		".3..8....",
-		"4.5.23.18",
-		".1.63..59",
-		".59.7.83.",
-		"..359...7",
+func TestIsValid(t *testing.T) {
+	tests := []struct {
+		name     string
+		rows     []string
+		row, col int
+		num      int
+		want     bool
+	}{
+		{
+			name: "empty board allows digit in corner",
+			rows: stringsRepeat(".........", 9),
+			row:  0, col: 0, num: 5,
+			want: true,
+		},
+		{
+			name: "rejects duplicate in same row",
+			rows: []string{
+				"5........",
+				".........", ".........", ".........", ".........",
+				".........", ".........", ".........", ".........",
+			},
+			row: 0, col: 1, num: 5,
+			want: false,
+		},
+		{
+			name: "rejects duplicate in same column",
+			rows: []string{
+				"5........",
+				".........", ".........", ".........", ".........",
+				".........", ".........", ".........", ".........",
+			},
+			row: 1, col: 0, num: 5,
+			want: false,
+		},
+		{
+			name: "rejects duplicate in same 3x3 box",
+			rows: []string{
+				"5........",
+				".5.......",
+				".........", ".........", ".........", ".........",
+				".........", ".........", ".........", ".........",
+			},
+			row: 2, col: 2, num: 5,
+			want: false,
+		},
+		{
+			name: "allows digit when row col and box are clear",
+			rows: []string{
+				".96.4...1",
+				"1...6...4",
+				"5.481.39.",
+				"..795..43",
+				".3..8....",
+				"4.5.23.18",
+				".1.63..59",
+				".59.7.83.",
+				"..359...7",
+			},
+			row: 0, col: 0, num: 3,
+			want: true,
+		},
+		{
+			name: "rejects 3 at top-left when puzzle clues block it",
+			rows: []string{
+				".96.4...1",
+				"1...6...4",
+				"5.481.39.",
+				"..795..43",
+				".3..8....",
+				"4.5.23.18",
+				".1.63..59",
+				".59.7.83.",
+				"..359...7",
+			},
+			row: 0, col: 0, num: 9,
+			want: false,
+		},
 	}
 
-	for r, arg := range rows {
-		for c, ch := range arg {
-			if ch == '.' {
-				grid[r][c] = 0
-			} else {
-				grid[r][c] = int(ch - '0')
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			resetBoards()
+			setGrid(tc.rows)
+			got := isValid(tc.row, tc.col, tc.num)
+			if got != tc.want {
+				t.Errorf("isValid(%d, %d, %d) = %v, want %v", tc.row, tc.col, tc.num, got, tc.want)
 			}
-		}
+		})
+	}
+}
+
+func TestCluesAreValid(t *testing.T) {
+	tests := []struct {
+		name string
+		rows []string
+		want bool
+	}{
+		{
+			name: "valid partial puzzle",
+			rows: []string{
+				".96.4...1",
+				"1...6...4",
+				"5.481.39.",
+				"..795..43",
+				".3..8....",
+				"4.5.23.18",
+				".1.63..59",
+				".59.7.83.",
+				"..359...7",
+			},
+			want: true,
+		},
+		{
+			name: "two 5s in same row",
+			rows: []string{
+				"55.......",
+				".........", ".........", ".........", ".........",
+				".........", ".........", ".........", ".........",
+			},
+			want: false,
+		},
+		{
+			name: "two 1s in same column",
+			rows: []string{
+				"1........",
+				"1........",
+				".........", ".........", ".........",
+				".........", ".........", ".........", ".........",
+			},
+			want: false,
+		},
+		{
+			name: "two 7s in same box",
+			rows: []string{
+				"7........",
+				".7.......",
+				".........", ".........", ".........",
+				".........", ".........", ".........", ".........",
+			},
+			want: false,
+		},
 	}
 
-	solutions := 0
-	solve(&solutions)
-	if solutions != 1 {
-		t.Fatalf("Expected exactly one solution, got %d", solutions)
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			resetBoards()
+			setGrid(tc.rows)
+			if got := cluesAreValid(); got != tc.want {
+				t.Errorf("cluesAreValid() = %v, want %v", got, tc.want)
+			}
+		})
 	}
+}
 
-	expectedSolution := [9][9]int{
+func TestSolve(t *testing.T) {
+	expectedCase1 := [9][9]int{
 		{3, 9, 6, 2, 4, 5, 7, 8, 1},
 		{1, 7, 8, 3, 6, 9, 5, 2, 4},
 		{5, 2, 4, 8, 1, 7, 3, 9, 6},
@@ -296,11 +487,82 @@ func TestSolveBacktracking(t *testing.T) {
 		{8, 4, 3, 5, 9, 2, 1, 6, 7},
 	}
 
-	for r := 0; r < 9; r++ {
-		for c := 0; c < 9; c++ {
-			if solved[r][c] != expectedSolution[r][c] {
-				t.Errorf("At row %d, col %d: expected %d, got %d", r, c, expectedSolution[r][c], solved[r][c])
-			}
-		}
+	tests := []struct {
+		name       string
+		rows       []string
+		wantCount  int
+		wantSolved [9][9]int // zero value means do not check solved grid
+	}{
+		{
+			name: "unique solution (integration case 1)",
+			rows: []string{
+				".96.4...1",
+				"1...6...4",
+				"5.481.39.",
+				"..795..43",
+				".3..8....",
+				"4.5.23.18",
+				".1.63..59",
+				".59.7.83.",
+				"..359...7",
+			},
+			wantCount:  1,
+			wantSolved: expectedCase1,
+		},
+		{
+			name:       "one empty cell in complete grid",
+			rows:       boardToRows(expectedCase1, [][2]int{{0, 0}}),
+			wantCount:  1,
+			wantSolved: expectedCase1,
+		},
+		{
+			name:      "empty grid has multiple solutions",
+			rows:      stringsRepeat(".........", 9),
+			wantCount: 2, // solve stops after finding a second solution
+		},
+		{
+			name: "no solution (integration case 16)",
+			rows: []string{
+				"9.46.3..1",
+				"37.1..2.6",
+				"..6..93.4",
+				"..13..9.5",
+				"56..91...",
+				"82...461.",
+				"..79...4.",
+				"425.167..",
+				"1.2..75.8",
+			},
+			wantCount: 0,
+		},
 	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			resetBoards()
+			setGrid(tc.rows)
+			got := countSolutions()
+			if got != tc.wantCount {
+				t.Fatalf("countSolutions() = %d, want %d", got, tc.wantCount)
+			}
+			if tc.wantCount == 1 && tc.wantSolved[0][0] != 0 {
+				for r := 0; r < 9; r++ {
+					for c := 0; c < 9; c++ {
+						if solved[r][c] != tc.wantSolved[r][c] {
+							t.Errorf("solved[%d][%d] = %d, want %d", r, c, solved[r][c], tc.wantSolved[r][c])
+						}
+					}
+				}
+			}
+		})
+	}
+}
+
+// stringsRepeat builds n copies of s (helper for empty-grid tests).
+func stringsRepeat(s string, n int) []string {
+	out := make([]string, n)
+	for i := range out {
+		out[i] = s
+	}
+	return out
 }
