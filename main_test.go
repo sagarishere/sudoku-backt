@@ -244,6 +244,9 @@ func TestAllScenarios(t *testing.T) {
 		outStr := stdout.String()
 		outStr = strings.ReplaceAll(outStr, "\r\n", "\n")
 		expected := strings.ReplaceAll(tc.expected, "\r\n", "\n")
+		// Ignore trailing blank line (old solver printed an extra newline after the grid)
+		outStr = strings.TrimRight(outStr, "\n")
+		expected = strings.TrimRight(expected, "\n")
 
 		if outStr != expected {
 			t.Errorf("Case %d failed.\nArgs: %v\nExpected:\n%q\nGot:\n%q\nStderr: %s", i+1, tc.args, expected, outStr, stderr.String())
@@ -251,26 +254,34 @@ func TestAllScenarios(t *testing.T) {
 	}
 }
 
-func TestSolveExactCover(t *testing.T) {
-	input := []string{
-		"096040001",
-		"100060004",
-		"504810390",
-		"007950043",
-		"030080000",
-		"405023018",
-		"010630059",
-		"059070830",
-		"003590007",
+func TestSolveBacktracking(t *testing.T) {
+	// Same puzzle as Test Case 1 in TestAllScenarios
+	rows := []string{
+		".96.4...1",
+		"1...6...4",
+		"5.481.39.",
+		"..795..43",
+		".3..8....",
+		"4.5.23.18",
+		".1.63..59",
+		".59.7.83.",
+		"..359...7",
 	}
 
-	board, valid := createBoard(input)
-	if !valid {
-		t.Fatalf("Expected board to be validly created")
+	for r, arg := range rows {
+		for c, ch := range arg {
+			if ch == '.' {
+				grid[r][c] = 0
+			} else {
+				grid[r][c] = int(ch - '0')
+			}
+		}
 	}
 
-	if !solveExactCover(&board) {
-		t.Fatalf("Expected exact cover solver to find a solution")
+	solutions := 0
+	solve(&solutions)
+	if solutions != 1 {
+		t.Fatalf("Expected exactly one solution, got %d", solutions)
 	}
 
 	expectedSolution := [9][9]int{
@@ -287,8 +298,8 @@ func TestSolveExactCover(t *testing.T) {
 
 	for r := 0; r < 9; r++ {
 		for c := 0; c < 9; c++ {
-			if board[r][c] != expectedSolution[r][c] {
-				t.Errorf("At row %d, col %d: expected %d, got %d", r, c, expectedSolution[r][c], board[r][c])
+			if solved[r][c] != expectedSolution[r][c] {
+				t.Errorf("At row %d, col %d: expected %d, got %d", r, c, expectedSolution[r][c], solved[r][c])
 			}
 		}
 	}

@@ -1,13 +1,14 @@
 # Go Sudoku Solver
 
-A Sudoku solver implemented in Go using **Knuth's Algorithm X (Exact Cover)** with **Dancing Links (DLX)**. All code lives in a single `main.go`, read top-to-bottom with helpers at the bottom.
+A Sudoku solver implemented in Go using **backtracking**. All logic lives in a single `main.go` file.
 
 ## Features
 
-- **Algorithm X (Exact Cover)**: Formulates Sudoku as an exact cover problem and solves it with Dancing Links.
+- **Backtracking search**: Tries digits 1–9 in empty cells, undoing choices when they lead to a dead end.
+- **Unique-solution check**: Stops after finding two solutions and reports `Error` if the puzzle is invalid or ambiguous.
 - **Grading compliant**: Prints only the final solution or `Error` for invalid boards.
 - **Dependency-free**: Uses only `os` and `fmt`.
-- **Robust validation**: Checks dimensions, characters, and minimum clues (at least 17 numbers, 8 unique).
+- **Input validation**: Checks argument count, row length, characters, and that given clues do not already violate Sudoku rules.
 
 ---
 
@@ -49,431 +50,192 @@ A completed Sudoku is a grid where:
 - Every column is a permutation of 1–9.
 - Every 3×3 block is a permutation of 1–9.
 
-This solver takes a partially filled grid (via command-line input), checks that the starting clues are legal, and fills in the rest automatically. The sections below explain **how** it does that.
-
-For a **line-by-line walkthrough** on a real test puzzle (including how the first empty cell gets its digit), see [explanation.md](explanation.md).
+This solver takes a partially filled grid (via command-line input), checks that the starting clues are legal, and fills in the rest automatically. The sections below explain **how** it does that with backtracking.
 
 ---
 
 ## How It Works
 
-This section is written for **complete beginners**. We start with everyday ideas (lists, links, walking from one item to the next), then build up to Knuth's **Algorithm X** and **Dancing Links (DLX)**, which is how this project solves Sudoku.
-
-**Reading tip:** If you already know Sudoku, you can skim [What is Sudoku?](#what-is-sudoku) above. If you already know linked lists, jump to [From Sudoku rules to Exact Cover](#from-sudoku-rules-to-exact-cover).
-
----
+This section explains the **backtracking** approach used in `main.go`. If you already know Sudoku, you can skim [What is Sudoku?](#what-is-sudoku) above.
 
 ### What problem are we solving?
 
-Given a 9×9 Sudoku board with some cells already filled (see the [three rules](#what-is-sudoku) above), we must fill every empty cell so that **all three rules hold at once** — valid rows, columns, and blocks together.
+Given a 9×9 Sudoku board with some cells already filled, we must fill every empty cell so that **all three rules hold at once**. A well-formed puzzle has **exactly one** solution.
 
-There are many ways to try digits and backtrack when you hit a dead end. This project uses a famous, efficient method: turn Sudoku into an **exact cover** problem and search with **Dancing Links**.
+A natural human strategy is: pick an empty cell, try a digit that does not break any rule, and if you get stuck later, **undo** that digit and try another. That is exactly what this program does, recursively.
+
+### The grid in memory
+
+Two global 9×9 arrays hold state:
+
+| Variable | Role |
+|----------|------|
+| `grid` | Working board while searching (cells change during backtracking) |
+| `solved` | Copy of `grid` when the first complete solution is found |
+
+Empty cells are stored as `0`. Given clues are digits `1`–`9`.
+
+### `isValid` — can we place a digit here?
+
+Before placing digit `num` at `(row, col)`, the solver checks three things (the cell itself must be empty when called):
+
+1. **Row** — no other cell in that row already has `num`.
+2. **Column** — no other cell in that column already has `num`.
+3. **Block** — no other cell in the same 3×3 box already has `num`.
+
+The block’s top-left corner is computed with integer division:
+
+```go
+startRow := (row / 3) * 3
+startCol := (col / 3) * 3
+```
+
+If any check fails, that digit cannot go in this cell.
+
+### `solve` — backtracking search
+
+`solve` is a recursive function that:
+
+1. **Stops early** if more than one solution has been found (puzzle is not unique).
+2. **Finds the next empty cell** by scanning the grid top-to-bottom, left-to-right.
+3. If **no empty cell** remains, the board is full — increment the solution counter and save the first solution into `solved`.
+4. Otherwise, **try digits 1 through 9** in that cell:
+   - If `isValid(row, col, num)`:
+     - Place `num` in `grid[row][col]`.
+     - Call `solve` recursively.
+     - **Undo** the placement (`grid[row][col] = 0`) before trying the next digit.
+
+This is classic **backtracking**: choose → explore → undo on failure.
+
+### `main` — parse, validate, solve, print
+
+1. **Parse** exactly 9 CLI arguments (one row each). `.` means empty; `1`–`9` are clues. Anything else → `Error`.
+2. **Validate givens** — for each filled cell, temporarily clear it and run `isValid`. If a given digit already conflicts with another given in its row, column, or box → `Error`.
+3. **Solve** — call `solve(&solutions)`. If `solutions != 1` (zero or multiple solutions) → `Error`.
+4. **Print** the grid from `solved`, one row per line, digits separated by spaces.
 
 ---
 
-### Warm-up: values, variables, and pointers (Go)
+## Code walkthrough: Test Case 1
 
-In Go, a **variable** holds a value. A **pointer** (`*Something`) holds the **address** of a value somewhere else in memory. We use pointers so different parts of the program can refer to the **same** object and update it in one place.
+This walkthrough follows the **first valid puzzle** in `main_test.go` — the same example used by `TestSolveBacktracking`. We trace what the code does until the **first empty cell** (row 0, column 0) receives its digit.
 
-```go
-type Person struct {
-	Name string
-}
-
-alice := Person{Name: "Alice"}
-ptr := &alice          // ptr points at alice
-ptr.Name = "Alicia"    // changes alice.Name
-```
-
-In this solver, almost everything important is a **node** reached through pointers like `node.Right`, `node.Down`.
-
----
-
-### What is a node? (and what is a vertex?)
-
-In computer science, people often say **node** or **vertex** when they mean one **item** in a structure, with links to other items.
-
-- **Node** — common in linked lists, trees, and graphs.
-- **Vertex** — common in graph theory (same idea: a point you can connect to others).
-
-In this project, a **node** is a small struct with links in four directions:
-
-```go
-type Node struct {
-	Left, Right, Up, Down *Node  // pointers to neighbor nodes
-	Col                   *Column
-	RowVal, ColIdx, Digit int   // Sudoku meaning: row, column, digit
-}
-```
-
-Think of each node as a **bead** on a wire. You do not scan a big array; you **follow wires** (`Left`, `Right`, `Up`, `Down`) to visit neighbors.
-
-#### A DLX node up close
-
-The diagram below shows **one** node and how it connects to its neighbors. This is the heart of Dancing Links — not a normal 2D table stored in memory, but a **linked grid** you walk through pointer by pointer.
-
-<img src="images/DLX/NodeWithFourPointers.jpg" alt="DLX node with Left, Right, Up, Down pointers and Sudoku fields RowVal, ColIdx, Digit" width="100%">
-
-Read the diagram in two parts:
-
-**1. Pointer links (how you move around)**  
-The green section holds four pointers: `Left`, `Right`, `Up`, and `Down`. Each one stores the **address** of another node (that is what `*Node` means — a pointer to a `Node`). Solid arrows in the picture show “this node knows about that neighbor.” The faint arrows going back mean the links work **both ways**: if A points right to B, then B points left to A.
-
-- **Up / Down** — move within a **column** (vertical list of choices for one constraint).
-- **Left / Right** — move within a **row** (horizontal ring of the four constraints one Sudoku placement satisfies).
-
-So when the code says `node.Right`, it means: “give me the next node in this horizontal ring.” When it says `node.Down`, it means: “give me the next node below in this column.”
-
-**2. Sudoku data (what this node means)**  
-The orange section answers: *which Sudoku placement does this node represent?*
-
-| Field | Meaning |
-|-------|---------|
-| `RowVal` | Row on the board (0–8) |
-| `ColIdx` | Column on the board (0–8) |
-| `Digit` | Digit placed there (1–9) |
-| `Col` | Which constraint column this node belongs to |
-
-Example: a node with `RowVal = 2`, `ColIdx = 4`, `Digit = 7` belongs to the choice **“put 7 in row 2, column 4.”** That one Sudoku idea is represented by **four** linked nodes in the matrix (cell, row, column, and box constraints) — you hop between them using `Left` and `Right`.
-
-**Beginner takeaway:** A DLX node is a small box with **directions** (four pointers) and a **label** (which row, column, and digit it stands for). The solver never says “look at row 5 of a big array.” It says “start here, follow `Down`, then follow `Right`” — that is **traversal**.
-
----
-
-### A simple singly linked list (one direction)
-
-Before Dancing Links, picture the simplest linked list: each node only knows the **next** node.
-
-```go
-type SimpleNode struct {
-	Value int
-	Next  *SimpleNode
-}
-
-// Build: 10 -> 20 -> 30
-n3 := &SimpleNode{Value: 30}
-n2 := &SimpleNode{Value: 20, Next: n3}
-n1 := &SimpleNode{Value: 10, Next: n2}
-
-// Traverse: start at head, follow Next until nil
-for cur := n1; cur != nil; cur = cur.Next {
-	fmt.Println(cur.Value) // prints 10, then 20, then 30
-}
-```
-
-- **Head** — where you **start** traversing (`n1` above). There is no special "head type"; it is just the first pointer you keep.
-- **Tail** — the **last** node (`n3` above), where `Next` is `nil`.
-
-Traversal means: **repeat "go to next" until there is no next.**
-
----
-
-### Doubly linked list (two directions)
-
-A **doubly linked** node knows **both** previous and next. You can walk forward **or** backward.
-
-```go
-type DNode struct {
-	Value      int
-	Prev, Next *DNode
-}
-
-a := &DNode{Value: 1}
-b := &DNode{Value: 2}
-c := &DNode{Value: 3}
-// link forward: a <-> b <-> c
-a.Next, b.Prev, b.Next, c.Prev = b, a, c, b
-
-// Forward traverse
-for cur := a; cur != nil; cur = cur.Next {
-	fmt.Println(cur.Value)
-}
-
-// Backward traverse from tail
-for cur := c; cur != nil; cur = cur.Prev {
-	fmt.Println(cur.Value)
-}
-```
-
-Dancing Links uses **four** pointers per node (`Left`, `Right`, `Up`, `Down`) — like a doubly linked list extended into a **grid**.
-
----
-
-### Head, sentinel, and "where to start"
-
-Words like **head** show up in two related ways:
-
-1. **List head** — the first node you use to start a walk (e.g. `n1` in the simple list).
-2. **Sentinel / dummy head** — a special node that is **not** real data but marks the start/end of a ring. In DLX, each column has a `Head` node that sits at the top of that column's vertical list.
-
-In `main.go`, each column is:
-
-```go
-type Column struct {
-	Head Node   // sentinel at the top of this column
-	Size int    // how many real nodes are below Head
-	ID   int
-}
-```
-
-When we write `col.Head.Down`, we mean: "start at the column's sentinel, then go **down** to the first real option in that column." The loop
-
-```go
-for r := col.Head.Down; r != &col.Head; r = r.Down {
-	// ...
-}
-```
-
-means: visit every node in this column **except** the sentinel itself.
-
-There is usually **no separate tail pointer** in DLX. The structure is **circular**: if you keep going `Down`, you eventually wrap back to `Head`.
-
----
-
-### Circular lists (why "Dancing" Links)
-
-In a **circular** doubly linked list, the last node's `Next` points back to the first, and the first node's `Prev` points to the last. There is no `nil` at the ends — you stop when you recognize you've come **full circle**.
-
-```go
-// Three nodes in a horizontal ring: A <-> B <-> C <-> A
-a := &Node{}
-b := &Node{}
-c := &Node{}
-a.Left, a.Right = c, b
-b.Left, b.Right = a, c
-c.Left, c.Right = b, a
-
-// Walk right until we're back at the start
-start := a
-for cur := start.Right; cur != start; cur = cur.Right {
-	// visit cur
-}
-```
-
-**Cover** and **uncover** in DLX only **rewire pointers** (unlink/link neighbors). Nodes stay in memory; they "dance" in and out of the active structure. That is faster than copying large matrices.
-
----
-
-### Traversing in four directions (mini DLX)
-
-Each data node sits in **one horizontal ring** (one Sudoku "choice" row) and **one vertical list** (one matrix column). Example of moving around one row of four nodes:
-
-```go
-// Suppose 'start' is one node in a horizontal ring of four
-for j := start.Right; j != start; j = j.Right {
-	// j visits each of the 4 nodes in this row, once
-}
-```
-
-Vertical walk in a column (skip the sentinel `Head`):
-
-```go
-for i := col.Head.Down; i != &col.Head; i = i.Down {
-	// i is each option still active in this column
-}
-```
-
-In `main.go`, `root` is a special node whose horizontal ring lists **all column headers**. When `root.Right == &root`, every column has been covered and the puzzle is solved.
-
----
-
-### From Sudoku rules to Exact Cover
-
-Knuth's **Algorithm X** solves the **Exact Cover** problem:
-
-> Given a collection of sets and a universe of "things that must be covered," choose a **subset of sets** such that **every** thing is covered **exactly once**, and no two chosen sets overlap.
-
-**Sudoku as exact cover:**
-
-- **Things to cover** = all the rules that must be satisfied (each cell has one digit, each row has each digit once, etc.).
-- **Sets (choices)** = "put digit `v` in cell `(r, c)`."
-- Each choice touches several rules at once. Pick **81** choices (one per cell) with **no overlap** — that is a valid solution.
-
-#### Jigsaw analogy
-
-1. There are **324 slots** that must be filled (constraints).
-2. There are **729 pieces** (every digit in every cell).
-3. Each piece covers exactly **4 slots** (cell, row, column, box).
-4. Pick **81 pieces** so all slots are filled with no overlap.
-
-#### Why 324 slots? (You only see 81 cells on the board)
-
-A fair question: the grid is **9×9 = 81 cells**, so where does **324** come from?
-
-**Answer:** A **slot** is not a cell on the board. It is **one rule** the solver must satisfy. We list every Sudoku rule explicitly, and there are **four kinds** of rules — each kind contributes **81** slots:
-
-| What you see | What the solver tracks |
-|--------------|------------------------|
-| **81 cells** on the 9×9 grid | **81** cell rules: “this cell gets exactly one digit” |
-| 9 rows | **81** row rules: “in row *r*, digit *d* appears exactly once” (9 rows × 9 digits) |
-| 9 columns | **81** column rules: “in column *c*, digit *d* appears exactly once” |
-| 9 boxes | **81** box rules: “in box *b*, digit *d* appears exactly once” |
-
-Add them up:
+### The example puzzle
 
 ```text
-  81   cell rules
-+ 81   row rules
-+ 81   column rules
-+ 81   box rules
-────
- 324   total slots (constraints)
+Input (`.` = empty):
+
+. 9 6 . 4 . . . 1
+1 . . . 6 . . . 4
+5 . 4 8 1 . 3 9 .
+. . 7 9 5 . . 4 3
+. 3 . . 8 . . . .
+4 . 5 . 2 3 . 1 8
+. 1 . 6 3 . . 5 9
+. 5 9 . 7 . 8 3 .
+. . 3 5 9 . . . 7
 ```
 
-So **324 = 4 × 81**. We are not counting cells four times; we are counting **four separate rule families**, each with 81 members.
+**First empty cell (reading order):** row **0**, column **0** — top-left corner.
 
-**Why are row rules 81, not just 9?**  
-Nine rows does **not** mean nine row rules. The row rule is: *each digit 1–9 appears exactly once in that row*. That is **nine separate facts per row** (one per digit). Example slots:
+**Final answer for that cell:** **3** (from the full solution in the test).
 
-- “Row 3 contains **7** exactly once”
-- “Row 3 contains **2** exactly once”
-- … and so on for every row and every digit → **9 × 9 = 81** row slots.
+With backtracking, cells are filled in **scan order** (row 0 col 0, then row 0 col 1, …), not by “hardest cell first.” So (0,0) is actually the **first** cell the solver tries to fill — but many later cells get resolved before (0,0) succeeds, because earlier attempts at (0,0) may fail and backtrack.
 
-The same logic gives **81** column slots and **81** box slots.
+### Phase 1 — Parse input (`main`)
 
-**Examples of one slot each:**
+Each CLI string becomes one row. `.` → `0`; digits `'1'`–`'9'` → `1`–`9`.
 
-| Slot | Plain English |
-|------|----------------|
-| Cell (4, 7) | The cell at row 4, column 7 must hold **some** digit (exactly one). |
-| Row 3, digit 7 | Row 3 must contain **7** exactly once. |
-| Column 5, digit 2 | Column 5 must contain **2** exactly once. |
-| Box 0 (top-left), digit 9 | The top-left 3×3 box must contain **9** exactly once. |
-
-**Mental picture:**
+After parsing, row 0 in memory is:
 
 ```text
-What you see:              What the solver tracks:
-┌─────────────┐            81  → each cell has a number
-│  9 × 9 = 81 │           +81  → each row has 1–9 once
-│    cells    │           +81  → each column has 1–9 once
-└─────────────┘           +81  → each box has 1–9 once
-                            ───
-                            324 rules to satisfy
+grid[0] = [0, 9, 6, 0, 4, 0, 0, 0, 1]
+            ↑
+         first empty cell in scan order
 ```
 
-**Why 729 pieces?**  
-A **piece** (candidate) means: “put digit **v** in cell **(r, c)**.” There are 9 choices of row, 9 of column, and 9 of digit: **9 × 9 × 9 = 729** possible placements. Each placement satisfies **4** of the 324 slots at once (its cell, row, column, and box). A complete Sudoku picks **81** of those 729 pieces — one per cell — so that **all 324** rules are met with no conflict.
+### Phase 2 — Validate givens
 
----
+For each non-zero cell, the code clears that cell, calls `isValid`, then restores the value. Our puzzle has no conflicting givens, so validation passes.
 
-### Constraints (columns in the matrix)
+If validation fails, `main` prints `Error` and exits before solving.
 
-In code, each of the 324 slots above is one **column** in the exact-cover matrix. We encode rules as **324 columns** (81 of each type):
+### Phase 3 — First visit to cell (0,0)
 
-| Type | Meaning | Count |
-|------|---------|-------|
-| **Cell** | Each of the 81 cells has exactly one digit | 81 |
-| **Row** | In each row, digit 1–9 appears exactly once | 81 |
-| **Column** | In each column, digit 1–9 appears exactly once | 81 |
-| **Box** | In each 3×3 box, digit 1–9 appears exactly once | 81 |
+`solve` finds the first `0` at `(0, 0)` and tries digits **1** through **9**:
 
-Column index examples from `main.go` when building a candidate for row `r`, column `c`, digit `v`:
+| Try | `isValid(0, 0, num)` | Why |
+|-----|----------------------|-----|
+| 1 | false | Row 0 already has 1; column 0 has 1 from row 1 |
+| 2 | may pass row/col/box checks | Search continues deeper… |
+| … | … | Other branches fill more cells or hit dead ends |
+| 3 | true (on the successful path) | Eventually leads to the unique solution |
 
-```go
-c1 := r*9 + c                                    // cell constraint
-c2 := 81 + r*9 + (v - 1)                         // row constraint
-c3 := 162 + c*9 + (v - 1)                        // column constraint
-c4 := 243 + ((r/3)*3+c/3)*9 + (v - 1)            // box constraint
+Backtracking explores failed branches by resetting `grid[0][0] = 0` and trying the next digit. When a full grid is found, `solutions` becomes 1 and `solved` stores that grid.
+
+### Phase 4 — What the successful path looks like
+
+On the path that yields the unique solution, the solver fills cells in scan order. By the time it commits **3** at (0,0), other cells on row 0 are already settled on that branch:
+
+```text
+3 9 6 2 4 5 7 8 1   ← row 0 complete
+1 . . . 6 . . . 4
+5 . 4 8 1 . 3 9 .
+...
 ```
 
----
+Row 0 needs **3** in the top-left: row 0 already contains 9, 6, 4, 1 and the top-left box cannot repeat those. Digits **2, 3, 7, 8** are the only candidates by pencil-mark logic; backtracking discovers that **3** is the only digit that completes the **entire** puzzle consistently.
 
-### Candidates (rows in the matrix)
+### Phase 5 — Print result
 
-There are **729** candidates: for each of 81 cells, try digits 1–9. Each candidate is one **horizontal row** of four linked nodes (one node per constraint it satisfies). Only some combinations are valid; search finds a set of **81** non-conflicting candidates.
+When exactly one solution exists, `main` prints `solved`:
 
----
-
-### Building the DLX structure (big picture)
-
-1. Create **324 column headers**, each with a sentinel `Head`.
-2. Link all headers in a **horizontal ring** with a `root` node (see `solveExactCover` in `main.go`).
-3. For each candidate `(r, c, v)`, create **4 nodes**, insert each into its column vertically, and link all four in a horizontal ring.
-4. For **given clues** on the input board, **cover** the columns for that fixed choice so the search cannot contradict the clue.
-
----
-
-### Cover and uncover (unlinking neighbors)
-
-**Cover** a column = remove that column header from the horizontal ring, and remove every row that uses that column (unlink all nodes in those rows vertically). **Uncover** reverses those steps in **reverse order** (important for correctness).
-
-Removing one node from a horizontal ring (same idea as unlinking left/right):
-
-```go
-// Cover: skip 'node' in the left-right list
-node.Right.Left = node.Left
-node.Left.Right = node.Right
-
-// Uncover: put 'node' back
-node.Right.Left = node
-node.Left.Right = node
+```text
+3 9 6 2 4 5 7 8 1
+1 7 8 3 6 9 5 2 4
+5 2 4 8 1 7 3 9 6
+2 8 7 9 5 1 6 4 3
+9 3 1 4 8 6 2 7 5
+4 6 5 7 2 3 9 1 8
+7 1 2 6 3 8 4 5 9
+6 5 9 1 7 4 8 3 2
+8 4 3 5 9 2 1 6 7
 ```
 
-The full `cover` / `uncover` in `main.go` also walk `Down` / `Up` and update `Col.Size` so `selectColumn` can pick a column with fewest remaining options (**MRV heuristic** — try the most constrained column first).
+### What if a guess is wrong?
 
----
+If placing a digit leads to a dead end (no empty cell can accept any digit 1–9), recursion returns, the code sets `grid[row][col] = 0`, and the next digit is tried. If all digits fail at some cell, the branch fails and search backtracks further up.
 
-### The search (Algorithm X on Dancing Links)
+The puzzle is rejected when:
 
-Recursive outline:
+- **No** complete grid exists (`solutions == 0`), or
+- **More than one** complete grid exists (`solutions > 1`).
 
-1. If no columns remain (`root.Right == &root`), success.
-2. Pick a column with fewest active rows (`selectColumn`).
-3. **Cover** that column.
-4. For each row `r` still in that column:
-   - Add `r` to the solution.
-   - **Cover** every other column touched by that row.
-   - If recursive search succeeds, return true.
-   - Otherwise **backtrack**: remove `r` from solution and **uncover** those columns.
-5. **Uncover** the chosen column and return false.
+### Map: concepts → code
 
-This matches `main.go`:
+| Concept | Where in `main.go` |
+|---------|-------------------|
+| Parse `.` and digits | `main` (loop over `args`) |
+| Check row/column/block rules | `isValid` |
+| Find next empty cell | `solve` (nested `for` loops) |
+| Try digit and recurse | `solve` (`for num := 1; num <= 9`) |
+| Undo a bad guess | `grid[row][col] = 0` after recursive call |
+| Count solutions | `solutions` pointer; stop if `> 1` |
+| Save first solution | `solved = grid` when `*solutions == 1` |
+| Print answer | `main` (loop over `solved`) |
 
-```go
-search = func() bool {
-	if root.Right == &root {
-		return true
-	}
-	col := selectColumn(&root)
-	cover(col)
-	for r := col.Head.Down; r != &col.Head; r = r.Down {
-		solution = append(solution, r)
-		for j := r.Right; j != r; j = j.Right {
-			cover(j.Col)
-		}
-		if search() {
-			return true
-		}
-		solution = solution[:len(solution)-1]
-		for j := r.Left; j != r; j = j.Left {
-			uncover(j.Col)
-		}
-	}
-	uncover(col)
-	return false
-}
-```
+### Key takeaways
 
-When search succeeds, each chosen node carries `RowVal`, `ColIdx`, and `Digit` — those values are written back into the board.
-
----
-
-### End-to-end flow in this repo
-
-1. **Parse** nine CLI strings into `board` (`createBoard`).
-2. **Validate** clue count and no duplicate givens (`startValid`).
-3. **Build** the 324×729 DLX structure and cover givens (`solveExactCover`).
-4. **Search** with cover/uncover/backtrack.
-5. **Print** the filled grid or `Error`.
-
-For the full implementation, read `main.go` top to bottom; helpers `cover`, `uncover`, and `selectColumn` are at the bottom.
+1. **Backtracking** = try a legal digit, recurse, undo if the deeper search fails.
+2. **Empty cells are visited in scan order** (row-major), not by a separate “hardest first” heuristic.
+3. **Givens are fixed** before `solve` runs; validation ensures they do not already break Sudoku rules.
+4. **Uniqueness** matters: the program only accepts puzzles with exactly one solution.
 
 ---
 
 ## Usage
 
-Run with exactly 9 arguments (one row each). Use `.` or `0` for empty cells.
+Run with exactly 9 arguments (one row each). Use `.` for empty cells.
 
 ### Valid example
 
@@ -513,11 +275,10 @@ Error
 ## Project layout
 
 ```
-├── main.go          # Entry point, solver, and helpers
+├── main.go          # Entry point, parser, validator, and backtracking solver
 ├── main_test.go     # Integration and unit tests
-├── README.md        # Concepts and usage
-├── explanation.md   # Step-by-step walkthrough on Test Case 1
-├── images/          # Diagrams (Sudoku rules, DLX, etc.)
+├── README.md        # Concepts, usage, and code walkthrough
+├── images/          # Diagrams for Sudoku rules
 └── go.mod
 ```
 
@@ -529,4 +290,5 @@ Error
 go test -v .
 ```
 
-`TestAllScenarios` runs 18 integration cases via the built binary. `TestSolveExactCover` checks the DLX solver directly.
+- **`TestAllScenarios`** — builds the binary and runs 18 integration cases (11 valid puzzles, invalid puzzles, and bad arguments).
+- **`TestSolveBacktracking`** — loads Test Case 1 into `grid`, calls `solve` directly, and checks `solved` against the expected 9×9 answer.
